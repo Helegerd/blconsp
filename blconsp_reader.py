@@ -1,7 +1,7 @@
 # Coding:utf-8
 # штука, которая читает и записывает инфу из blconsp файлов
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QDesktopWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QDesktopWidget, QFileDialog
 from PyQt5.QtGui import QFont
 winsizes = (190, 180)
 layerbytes = [b'', b'\x03', b'\x04', b'\x05', b'\x06']
@@ -148,6 +148,7 @@ class ConspWindowForm(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Конспекты по блокам')
+        self.conspFileName = ''  # имя рассматриваемого файла с конспектом
         # структура списка окна:
         # [x_отступа, у_отступа, х размера, у размера, виджет1, виджет 2, ...]
         
@@ -159,6 +160,7 @@ class ConspWindowForm(QMainWindow):
         self.mainlyst[4].resize(self.mainlyst[2] // 100 * 35, self.mainlyst[3] // 100 * 35)
         self.mainlyst[4].move(int(self.mainlyst[2] // 100 * 10.5), int(self.mainlyst[3] // 100 * 10.5))
         self.mainlyst[4].setFont(QFont('Arial', self.mainlyst[3] // 100 * 16))
+        self.mainlyst[4].clicked.connect(self.changeMainToRead)
         self.mainlyst[5].setText('+')  # кнопка для создания конспекта
         self.mainlyst[5].resize(self.mainlyst[2] // 100 * 35, self.mainlyst[3] // 100 * 35)
         self.mainlyst[5].move(int(self.mainlyst[2] // 100 * 54.5), int(self.mainlyst[3] // 100 * 10.5))
@@ -172,19 +174,45 @@ class ConspWindowForm(QMainWindow):
         self.mainlyst[7].move(int(self.mainlyst[2] // 100 * 54.5), int(self.mainlyst[3] // 100 * 54.5))
         self.mainlyst[7].setFont(QFont('Arial', self.mainlyst[3] // 100 * 16))
         
-        
-    def changeWindow(towin, fromwin, self):
+        # окно чтения конспектов
+        self.readlyst = [winsizes[0] // 100 * 30, winsizes[1] // 100 * 2, winsizes[0] // 100 * 40, winsizes[1] // 100 * 96] + [QPushButton(self) for _i in range(2)]
+        self.readlyst[4].setText(chr(127968))  # кнопка возврата в главное меню
+        self.readlyst[4].hide()
+        self.readlyst[4].resize(int(self.readlyst[2] / 100 * 4.5), int(self.readlyst[3] / 100 * 4.5))
+        self.readlyst[4].move(int(self.readlyst[2] / 100 * 0.5), int(self.readlyst[3] / 100 * 0.5))
+        self.readlyst[4].clicked.connect(self.changeReadToMain)
+        self.readlyst[4].setFont(QFont('Arial', int(self.readlyst[2] // 100 * 2.5)))
+        self.readlyst[5].setText(chr(128194))  # кнопка для открытия нового конспекта
+        self.readlyst[5].hide()
+        self.readlyst[5].resize(int(self.readlyst[2] / 100 * 4.5), int(self.readlyst[3] / 100 * 4.5))
+        self.readlyst[5].move(int(self.readlyst[2] / 100 * 95), int(self.readlyst[3] // 100 * 0.5))
+        self.readlyst[5].setFont(QFont('Arial', int(self.readlyst[2] / 100 * 2)))
+        self.readlyst[5].clicked.connect(self.getConspFileName)
+
+                
+    def changeWindow(self, towin, fromwin):
         '''меняет окна'''
         for widget in fromwin[4:]:
             widget.hide()
         self.setFixedSize(towin[2], towin[3])
-        self.move(towin[0], towinp[1])
-        for widget in tomwin[4:]:
+        self.move(towin[0], towin[1])
+        for widget in towin[4:]:
             widget.show()
+            
+    def getConspFileName(self):
+        '''пользователь показывает на файл с конспектом'''
+        self.conspFileName = QFileDialog.getOpenFileName(self, 'Выберете конспект', '', 'Конспект(*.blconsp)')[0]
+        print(self.conspFileName)
+            
+    def changeReadToMain(self):
+        self.changeWindow(self.mainlyst, self.readlyst)
+        
+    def changeMainToRead(self):
+        self.changeWindow(self.readlyst, self.mainlyst)
             
         
 #with open('consp.blconsp', mode='wb') as conspf:
 #    conspf.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b\x03\xd0\x91\x04\xd0\xb0\x04\x04\xd0\xb0\x05\xd0\xb0\x05\x04\x03')
-setConspParams('consp.blconsp', params=['Ария', ['История создания', ['1985']], ['Лучшие песни', ['Точка невозврата'], ['Ночь короче дня']]])
+setConspParams('consp.blconsp', params=['Ария', ['История создания', ['1985']], ['Лучшие песни📂', ['Точка невозврата'], ['Ночь короче дня']]])
 print(getConspParams('consp.blconsp'))
 runapp()
