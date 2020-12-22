@@ -1,5 +1,8 @@
 # Coding:utf-8
 # штука, которая читает и записывает инфу из blconsp файлов
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QDesktopWidget
+winsizes = (190, 180)
 layerbytes = [b'', b'\x03', b'\x04', b'\x05', b'\x06']
 
 def octnum(firstoct=b'\xd0'):
@@ -125,8 +128,40 @@ def setConspParams(conspFileName, params=[], depthlayer=0):
         with open(conspFileName, mode='wb') as conspf:
             conspf.write(retbyte)
     return retbyte
-    
+
+def runapp():
+    '''запуск окна
+    в функции, чтобы не было проблем при импорте'''
+    global winsizes
+    if __name__ == '__main__':
+        app = QApplication(sys.argv)
+        q = QDesktopWidget().availableGeometry()  # для считывания размеров экрана
+        winsizes = (q.width(), q.height())  # для записи размеров экрана
+        consp = ConspWindowForm()
+        consp.show()
+        sys.exit(app.exec_())
+
+
+class ConspWindowForm(QMainWindow):
+    '''интерфейс для открытия и создания конспектов'''
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle('Конспекты по блокам')
+        self.setGeometry(winsizes[0] // 3, winsizes[1] // 100 * 5, winsizes[0] // 3, winsizes[1] // 100 * 80)
+        # стартовое окно
+        self.openConspbtn = QPushButton(self)  # кнопка, открывает конспектный файл
+        self.openConspbtn.setText(chr(128214))
+        self.createConspbtn = QPushButton(self)  # кнопка для создания конспекта
+        self.createConspbtn.setText('+')
+        self.librarybtn = QPushButton(self)  # кнопка для перехода к библиотеке папок конспектов
+        self.librarybtn.setText(chr(128218))
+        self.settingsbtn = QPushButton(self)  # для открытия окна с настройками
+        self.settingsbtn.setText(chr(9881))
+        
+        
+        
 #with open('consp.blconsp', mode='wb') as conspf:
 #    conspf.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b\x03\xd0\x91\x04\xd0\xb0\x04\x04\xd0\xb0\x05\xd0\xb0\x05\x04\x03')
 setConspParams('consp.blconsp', params=['Ария', ['История создания', ['1985']], ['Лучшие песни', ['Точка невозврата'], ['Ночь короче дня']]])
 print(getConspParams('consp.blconsp'))
+runapp()
