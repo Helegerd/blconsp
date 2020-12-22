@@ -2,6 +2,7 @@
 # штука, которая читает и записывает инфу из blconsp файлов
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QDesktopWidget
+from PyQt5.QtGui import QFont
 winsizes = (190, 180)
 layerbytes = [b'', b'\x03', b'\x04', b'\x05', b'\x06']
 
@@ -147,18 +148,40 @@ class ConspWindowForm(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Конспекты по блокам')
-        self.setGeometry(winsizes[0] // 3, winsizes[1] // 100 * 5, winsizes[0] // 3, winsizes[1] // 100 * 80)
+        # структура списка окна:
+        # [x_отступа, у_отступа, х размера, у размера, виджет1, виджет 2, ...]
+        
         # стартовое окно
-        self.openConspbtn = QPushButton(self)  # кнопка, открывает конспектный файл
-        self.openConspbtn.setText(chr(128214))
-        self.createConspbtn = QPushButton(self)  # кнопка для создания конспекта
-        self.createConspbtn.setText('+')
-        self.librarybtn = QPushButton(self)  # кнопка для перехода к библиотеке папок конспектов
-        self.librarybtn.setText(chr(128218))
-        self.settingsbtn = QPushButton(self)  # для открытия окна с настройками
-        self.settingsbtn.setText(chr(9881))
+        self.mainlyst = [winsizes[0] // 4, winsizes[1] // 4, winsizes[0] // 2, winsizes[1] // 2, QPushButton(self), QPushButton(self), QPushButton(self), QPushButton(self)]
+        self.move(self.mainlyst[0], self.mainlyst[1])
+        self.setFixedSize(self.mainlyst[2], self.mainlyst[3])
+        self.mainlyst[4].setText(chr(128214))  # кнопка, открывает конспектный файл
+        self.mainlyst[4].resize(self.mainlyst[2] // 100 * 35, self.mainlyst[3] // 100 * 35)
+        self.mainlyst[4].move(int(self.mainlyst[2] // 100 * 10.5), int(self.mainlyst[3] // 100 * 10.5))
+        self.mainlyst[4].setFont(QFont('Arial', self.mainlyst[3] // 100 * 16))
+        self.mainlyst[5].setText('+')  # кнопка для создания конспекта
+        self.mainlyst[5].resize(self.mainlyst[2] // 100 * 35, self.mainlyst[3] // 100 * 35)
+        self.mainlyst[5].move(int(self.mainlyst[2] // 100 * 54.5), int(self.mainlyst[3] // 100 * 10.5))
+        self.mainlyst[5].setFont(QFont('Arial', self.mainlyst[3] // 100 * 35 - 1))
+        self.mainlyst[6].setText(chr(128218))  # кнопка для перехода к библиотеке папок конспектов
+        self.mainlyst[6].resize(self.mainlyst[2] // 100 * 35, self.mainlyst[3] // 100 * 35)
+        self.mainlyst[6].move(int(self.mainlyst[2] // 100 * 10.5), int(self.mainlyst[3] // 100 * 54.5))
+        self.mainlyst[6].setFont(QFont('Arial', self.mainlyst[3] // 100 * 16))
+        self.mainlyst[7].setText(chr(9881))  # для открытия окна с настройками
+        self.mainlyst[7].resize(self.mainlyst[2] // 100 * 35, self.mainlyst[3] // 100 * 35)
+        self.mainlyst[7].move(int(self.mainlyst[2] // 100 * 54.5), int(self.mainlyst[3] // 100 * 54.5))
+        self.mainlyst[7].setFont(QFont('Arial', self.mainlyst[3] // 100 * 16))
         
         
+    def changeWindow(towin, fromwin, self):
+        '''меняет окна'''
+        for widget in fromwin[4:]:
+            widget.hide()
+        self.setFixedSize(towin[2], towin[3])
+        self.move(towin[0], towinp[1])
+        for widget in tomwin[4:]:
+            widget.show()
+            
         
 #with open('consp.blconsp', mode='wb') as conspf:
 #    conspf.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b\x03\xd0\x91\x04\xd0\xb0\x04\x04\xd0\xb0\x05\xd0\xb0\x05\x04\x03')
