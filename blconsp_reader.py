@@ -1,7 +1,7 @@
 # Coding:utf-8
 # штука, которая читает и записывает инфу из blconsp файлов
 import sys, ctypes
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QDesktopWidget, QFileDialog, QWidget
+from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
 winsizes = (190, 180)
@@ -67,24 +67,6 @@ def runapp():
         consp = ConspWindowForm()
         consp.show()
         sys.exit(app.exec_())
-        
-        
-
-    def setText(self, text):
-        self.text = text
-
-
-
-
-class Communicate(QObject):
-    '''если правильно понял, помогает установить связь меж окном и виджетом'''
-    updateBW = pyqtSignal
-    
-    
-class PieceWid(QWidget):
-    '''выводит кусок с должным отступом и символом в начале'''
-    def __init__(self):
-        super().__init__()
     
 
 class ConspWindowForm(QMainWindow):
@@ -93,7 +75,8 @@ class ConspWindowForm(QMainWindow):
         super().__init__()
         self.setWindowTitle('Конспекты по блокам')
         self.conspFileName = ''  # имя рассматриваемого файла с конспектом
-        self.consparr = []
+        self.consparr = []  # содержимое конспекта ввиде списка
+        self.conspIsOpen = False
         # структура списка окна:
         # [x_отступа, у_отступа, х размера, у размера, виджет1, виджет 2, ...]
 
@@ -120,19 +103,29 @@ class ConspWindowForm(QMainWindow):
         self.mainlyst[7].setFont(QFont('Arial', self.mainlyst[3] // 100 * 16))
         
         # окно чтения конспектов
-        self.readlyst = [winsizes[0] // 100 * 30, winsizes[1] // 100 * 2, winsizes[0] // 100 * 40, winsizes[1] // 100 * 96] + [QPushButton(self) for _i in range(2)]
+        self.readlyst = [winsizes[0] // 100 * 30, winsizes[1] // 100 * 2, winsizes[0] // 100 * 40, winsizes[1] // 100 * 96] + [QPushButton(self) for _i in range(3)]
         self.readlyst[4].setText(chr(127968))  # кнопка возврата в главное меню
         self.readlyst[4].hide()
         self.readlyst[4].resize(int(self.readlyst[2] / 100 * 4.5), int(self.readlyst[3] / 100 * 4.5))
-        self.readlyst[4].move(int(self.readlyst[2] / 100 * 0.5), int(self.readlyst[3] / 100 * 0.5))
+        self.readlyst[4].move(int(self.readlyst[2] / 100 * 95.5), int(self.readlyst[3] // 100 * 0.5))
         self.readlyst[4].clicked.connect(self.changeReadToMain)
         self.readlyst[4].setFont(QFont('Arial', int(self.readlyst[2] // 100 * 2.5)))
         self.readlyst[5].setText(chr(128194))  # кнопка для открытия нового конспекта
         self.readlyst[5].hide()
         self.readlyst[5].resize(int(self.readlyst[2] / 100 * 4.5), int(self.readlyst[3] / 100 * 4.5))
-        self.readlyst[5].move(int(self.readlyst[2] / 100 * 95), int(self.readlyst[3] // 100 * 0.5))
+        self.readlyst[5].move(int(self.readlyst[2] / 100 * 95.5), int(self.readlyst[3] // 100 * 5.5))
         self.readlyst[5].setFont(QFont('Arial', int(self.readlyst[2] / 100 * 2)))
         self.readlyst[5].clicked.connect(self.getConspFileName)
+        self.readlyst[6].hide()  # сохранить конспект как
+        self.readlyst[6].setText('🖫')
+        self.readlyst[6].resize(int(self.readlyst[2] / 100 * 4.5), int(self.readlyst[3] / 100 * 4.5))
+        self.readlyst[6].move(int(self.readlyst[2] / 100 * 95.5), int(self.readlyst[3] // 100 * 10.5))
+        self.readlyst[6].setFont(QFont('Arial', int(self.readlyst[2] / 100 * 2)))
+        self.readlyst[6].clicked.connect(self.changeBords)
+        self.piecelist = []  # виджеты, воплощающие куски [[begsymbollab1, textEdit1], [begsymbollab2, textEdit2], ...]
+        self.begWid = 0
+        self.endWid = 0  # начальный и конечный виджеты
+        
 
                 
     def changeWindow(self, towin, fromwin):
@@ -147,11 +140,88 @@ class ConspWindowForm(QMainWindow):
     def getConspFileName(self):
         '''пользователь показывает на файл с конспектом'''
         self.conspFileName = QFileDialog.getOpenFileName(self, 'Выберете конспект', '', 'Конспект(*.blconsp)')[0]
-        try:
-            self.consparr = getConspParams(self.conspFileName)
-        except:
-            pass
-            
+        self.consparr = getConspParams(self.conspFileName)
+        self.yPosMove = 0  # для нормального смещения кусков
+        def getWids(consparr, depth=-1):  # запсь виджетов в self.piecelist
+            self.piecelist.append([QLabel(self), QTextEdit(self)])
+            datas = ['', '', '']  # [у размер в %, размер шрифта, начальный символ]
+            index = 0  # для ориентировки в datas
+            text = consparr[0].split(')')[1]  # для установки в QTextEdit
+            for sym in consparr[0].split(')')[0][1:]:
+                if sym == ',':
+                    index += 1
+                    continue
+                datas[index] = datas[index] + sym
+            d = depth  # чтобы объединить случаи с верховным заголовком и заголовком
+            if depth == -1:
+                d += 1
+            # лабел с маркой
+            self.piecelist[-1][0].setText(datas[2])
+            self.piecelist[-1][0].resize(int(self.width() * d * 0.05), int(self.height() * int(datas[0]) / 100))
+            self.piecelist[-1][0].move(int(self.width() * d * 0.05), self.yPosMove)
+            self.piecelist[-1][0].show()
+            # сам кусок
+            self.piecelist[-1][1].setText(text)
+            self.piecelist[-1][1].resize(int(self.width() * (0.9 - d * 0.05)), int(self.height() * int(datas[0]) / 100))
+            self.piecelist[-1][1].setReadOnly(True)
+            self.piecelist[-1][1].move(int(self.width() * (d + 1) * 0.05), self.yPosMove)
+            self.piecelist[-1][1].setFont(QFont('Arial', int(datas[1])))
+            self.piecelist[-1][1].show()
+            # удлинение отступа и пробежка по более глубоким уровням
+            self.yPosMove += int(self.height() * int(datas[0]) / 100 + self.height() * 0.01)
+            if len(consparr) > 1:
+                for wid in consparr[1:]:
+                    getWids(wid, depth=depth + 1)
+        getWids(self.consparr)
+        self.conspIsOpen = True
+    
+    def changeBords(self):
+        '''пересматривает то, какие виджеты видны в экране
+        нужно для оптимизации взаимодействия с ними
+        movement = -1/1 -- направление смещающихся вниз/вверх виджетов'''
+        lenthPiece = len(self.piecelist) - 1
+        if self.conspIsOpen:
+            if self.piecelist[self.begWid][1].height() + self.piecelist[self.begWid][1].y() >= 0:  # для определения самого высокого виджета на экране
+                while not (self.begWid == 0 or self.piecelist[self.begWid][1].height() + self.piecelist[self.begWid][1].y() < 0):
+                    self.begWid -= 1
+                if self.piecelist[self.begWid][1].height() + self.piecelist[self.begWid][1].y() < 0:
+                    self.begWid += 1
+            elif self.piecelist[self.begWid][1].height() + self.piecelist[self.begWid][1].y() < 0:
+                while self.piecelist[self.begWid][1].height() + self.piecelist[self.begWid][1].y() < 0:
+                    self.begWid += 1
+            if self.piecelist[self.endWid][1].y() > self.height():  # для определения самого низкого виджета на экране
+                while self.endWid != lenthPiece or self.piecelist[self.endWid][1].y() > self.height():
+                    self.endWid -= 1
+            elif self.piecelist[self.endWid][1].y() <= self.height():
+                while not (self.piecelist[self.endWid][1].y() > self.height() or self.endWid == lenthPiece):
+                    print(self.endWid)
+                    self.endWid += 1
+                if self.piecelist[self.endWid][1].y() > self.height():
+                    self.endWid -= 1
+            print(self.begWid, self.endWid)
+        
+    # events
+    
+    def wheelEvent(self, event):
+        if self.conspIsOpen:
+            if self.piecelist[0][1].y() <= 0 and event.angleDelta().y() > 0:  # вверх
+                ad = event.angleDelta().y()
+                if ad > -1 * self.piecelist[0][1].y():
+                    ad = -1 * self.piecelist[0][1].y()
+                for wids in self.piecelist:
+                    for wid in wids:
+                        wid.move(wid.x(), wid.y() + ad)
+                
+            if self.piecelist[-1][1].y() >= 0 and event.angleDelta().y() < 0:  # вниз
+                ad = event.angleDelta().y()
+                if -1 * ad > self.piecelist[-1][1].y():
+                    ad = -1 * self.piecelist[-1][1].y()
+                for wids in self.piecelist:
+                    for wid in wids:
+                        wid.move(wid.x(), wid.y() + ad)
+    
+    # for screen view changing
+    
     def changeReadToMain(self):
         self.changeWindow(self.mainlyst, self.readlyst)
         
@@ -163,6 +233,6 @@ class ConspWindowForm(QMainWindow):
 #    conspf.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b\x03\xd0\x91\x04\xd0\xb0\x04\x04\xd0\xb0\x05\xd0\xb0\x05\x04\x03')
 setConspParams('consp.blconsp', params=['(5,10,)Ария',
                                         ['(5,10,)История создания', ['(5,10,☆)1985']],
-                                        ['(5,10,)Лучшие песни📂', ['(5,10,☆)Точка невозврата'], ['(5,10,☆)Ночь короче дня']]])
+                                        ['(5,10,)Лучшие песни⇚⇛✅🖫', ['(5,10,☆)Точка невозврата'], ['(5,10,☆)Ночь короче дня']]])
 print(getConspParams('consp.blconsp'))
 runapp()
