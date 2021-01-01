@@ -7,6 +7,11 @@ from PyQt5.QtCore import Qt, QObject, pyqtSignal
 winsizes = (190, 180)
 layerbytes = [b'', b'\x03', b'\x04', b'\x05', b'\x06']
 
+def trueRound(num):
+    '''обычное округление'''
+    if num % 1 < 0.5:
+        return int(num)
+    return int(num) + 1
 
 def octnum(firstoct=b'\xd0'):
     '''возвращает кол-во октетов, анализируя первый
@@ -76,7 +81,8 @@ class ConspWindowForm(QMainWindow):
         self.setWindowTitle('Конспекты по блокам')
         self.conspFileName = ''  # имя рассматриваемого файла с конспектом
         self.consparr = []  # содержимое конспекта ввиде списка
-        self.conspIsOpen = False
+        self.conspIsOpen = False  # открыт ли конспект
+        self.cursorClickCoords = []  # координаты курсора при клике
         # структура списка окна:
         # [x_отступа, у_отступа, х размера, у размера, виджет1, виджет 2, ...]
 
@@ -124,7 +130,15 @@ class ConspWindowForm(QMainWindow):
         self.readlyst[6].clicked.connect(self.changeBords)
         self.piecelist = []  # виджеты, воплощающие куски [[begsymbollab1, textEdit1], [begsymbollab2, textEdit2], ...]
         self.begWid = 0
-        self.endWid = 0  # начальный и конечный виджеты
+        self.endWid = 0  # начальный и конечный виджеты, видимые на экране
+        self.clickedWidNum = []  # какой виджет выбран, [] если никакой
+        # виджет(ы) для передвидения куска и замены марки [выбор, галочка, стрелка влево, стрелка вправо]
+        self.moveButtons = [QComboBox(self)] + [QPushButton(self) for _i in range(3)]
+        self.moveButtons[1].setText('✅')
+        self.moveButtons[2].setText('⇚')
+        self.moveButtons[3].setText('⇛')
+        for wid in self.moveButtons:
+            wid.hide()
         
 
                 
@@ -177,9 +191,8 @@ class ConspWindowForm(QMainWindow):
     
     def changeBords(self):
         '''пересматривает то, какие виджеты видны в экране
-        нужно для оптимизации взаимодействия с ними
-        movement = -1/1 -- направление смещающихся вниз/вверх виджетов'''
-        lenthPiece = len(self.piecelist) - 1
+        нужно для оптимизации взаимодействия с ними'''
+        lenthPiece = len(self.piecelist) - 1  # индекс конца списка виджетов
         if self.conspIsOpen:
             if self.piecelist[self.begWid][1].height() + self.piecelist[self.begWid][1].y() >= 0:  # для определения самого высокого виджета на экране
                 while not (self.begWid == 0 or self.piecelist[self.begWid][1].height() + self.piecelist[self.begWid][1].y() < 0):
@@ -194,13 +207,38 @@ class ConspWindowForm(QMainWindow):
                     self.endWid -= 1
             elif self.piecelist[self.endWid][1].y() <= self.height():
                 while not (self.piecelist[self.endWid][1].y() > self.height() or self.endWid == lenthPiece):
-                    print(self.endWid)
                     self.endWid += 1
                 if self.piecelist[self.endWid][1].y() > self.height():
                     self.endWid -= 1
-            print(self.begWid, self.endWid)
         
     # events
+    
+    def mousePressEvent(self, event):
+        if self.conspIsOpen:
+            self.changeBords()
+            self.cursorClickCoords = [event.pos().x(), event.pos().y()]
+            if self.clickedWidNum == []:  # нет ли уже кликнутого виджета
+                for index in range(self.begWid, self.endWid + 1):  # по виджетам, которые видны
+                    if self.piecelist[index][1].y() <= self.cursorClickCoords[1] <=\
+                       self.piecelist[index][1].y() + self.piecelist[index][1].height():  # в куске ли
+                        if self.cursorClickCoords[0] <= self.piecelist[index][1].x() and index != 0:
+                            self.clickedWidNum = [index, 0]
+                            print('невыделенная марка')
+                        elif self.width() * 0.95 >= self.cursorClickCoords[0] >= self.piecelist[index][1].x():
+                            self.clickedWidNum = [index, 1]
+                            print('невыделенный кусок')
+                        break
+            else:  # есть уже выделенный виджет
+                if self.clickedWidNum[1] == 1 and self.piecelist[self.clickedWidNum[0]][1].y() <\
+                   self.cursorClickCoords[1] < self.piecelist[self.clickedWidNum[0]][1].y() +\
+                   self.piecelist[self.clickedWidNum[0]][1].height() and\
+                   self.piecelist[self.clickedWidNum[0]][1].x() < self.cursorClickCoords[0] <\
+                   self.piecelist[self.clickedWidNum[0]][1].x() + self.piecelist[self.clickedWidNum[0]][1].width():  # если это выделенный кусок
+                    self.piecelist[self.clickedWidNum[0]][1].setReadOnly(False)
+                else:
+                    self.piecelist[self.clickedWidNum[0]][1].setReadOnly(True)
+                    self.clickedWidNum = []
+                    print("обнуление")
     
     def wheelEvent(self, event):
         if self.conspIsOpen:
@@ -227,12 +265,21 @@ class ConspWindowForm(QMainWindow):
         
     def changeMainToRead(self):
         self.changeWindow(self.readlyst, self.mainlyst)
-            
+        # виджеты для сдвига
+        self.moveButtons[0].resize(int(0.1 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[0].move(int(self.width() * 0.025), int(self.height() * 0.025))
+        self.moveButtons[1].resize(int(0.025 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[1].move(int(0.0625 * self.width()), 0)
+        self.moveButtons[2].resize(int(0.025 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[2].move(0, int(self.height() * 0.025))
+        self.moveButtons[3].resize(int(0.025 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[3].move(int(self.width() * 0.125), int(self.height() * 0.025))
+        
         
 #with open('consp.blconsp', mode='wb') as conspf:
 #    conspf.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b\x03\xd0\x91\x04\xd0\xb0\x04\x04\xd0\xb0\x05\xd0\xb0\x05\x04\x03')
 setConspParams('consp.blconsp', params=['(5,10,)Ария',
                                         ['(5,10,)История создания', ['(5,10,☆)1985']],
-                                        ['(5,10,)Лучшие песни⇚⇛✅🖫', ['(5,10,☆)Точка невозврата'], ['(5,10,☆)Ночь короче дня']]])
+                                        ['(5,10,)Лучшие песни🔎🔖', ['(5,10,☆)Точка невозврата'], ['(5,10,☆)Ночь короче дня']]])
 print(getConspParams('consp.blconsp'))
 runapp()
