@@ -13,7 +13,7 @@ def trueRound(num):
         return int(num)
     return int(num) + 1
 
-def octnum(firstoct=b'\xd0'):
+def octnum(firstoct):
     '''возвращает кол-во октетов, анализируя первый
     нужно для удобства при чтении байтов'''
     decnum = firstoct[0]
@@ -131,15 +131,7 @@ class ConspWindowForm(QMainWindow):
         self.piecelist = []  # виджеты, воплощающие куски [[begsymbollab1, textEdit1], [begsymbollab2, textEdit2], ...]
         self.begWid = 0
         self.endWid = 0  # начальный и конечный виджеты, видимые на экране
-        self.clickedWidNum = []  # какой виджет выбран, [] если никакой
-        # виджет(ы) для передвидения куска и замены марки [выбор, галочка, стрелка влево, стрелка вправо]
-        self.moveButtons = [QComboBox(self)] + [QPushButton(self) for _i in range(3)]
-        self.moveButtons[1].setText('✅')
-        self.moveButtons[2].setText('⇚')
-        self.moveButtons[3].setText('⇛')
-        for wid in self.moveButtons:
-            wid.hide()
-        
+        self.clickedWidNum = []  # какой виджет выбран, [] если никакой, иначе [номер в списке, номер в строке]
 
                 
     def changeWindow(self, towin, fromwin):
@@ -152,7 +144,8 @@ class ConspWindowForm(QMainWindow):
             widget.show()
             
     def getConspFileName(self):
-        '''пользователь показывает на файл с конспектом'''
+        '''пользователь показывает на файл с конспектом,
+        конспект рисуется'''
         self.conspFileName = QFileDialog.getOpenFileName(self, 'Выберете конспект', '', 'Конспект(*.blconsp)')[0]
         self.consparr = getConspParams(self.conspFileName)
         self.yPosMove = 0  # для нормального смещения кусков
@@ -171,14 +164,13 @@ class ConspWindowForm(QMainWindow):
                 d += 1
             # лабел с маркой
             self.piecelist[-1][0].setText(datas[2])
-            self.piecelist[-1][0].resize(int(self.width() * d * 0.05), int(self.height() * int(datas[0]) / 100))
-            self.piecelist[-1][0].move(int(self.width() * d * 0.05), self.yPosMove)
+            self.piecelist[-1][0].resize(int(self.width() * 0.05) * d, int(self.height() * int(datas[0]) / 100))
+            self.piecelist[-1][0].move(int(self.width() * 0.05) * d, self.yPosMove)
             self.piecelist[-1][0].show()
             # сам кусок
             self.piecelist[-1][1].setText(text)
             self.piecelist[-1][1].resize(int(self.width() * (0.9 - d * 0.05)), int(self.height() * int(datas[0]) / 100))
-            self.piecelist[-1][1].setReadOnly(True)
-            self.piecelist[-1][1].move(int(self.width() * (d + 1) * 0.05), self.yPosMove)
+            self.piecelist[-1][1].move(int(self.width() * 0.05) * (d + 1), self.yPosMove)
             self.piecelist[-1][1].setFont(QFont('Arial', int(datas[1])))
             self.piecelist[-1][1].show()
             # удлинение отступа и пробежка по более глубоким уровням
@@ -188,6 +180,24 @@ class ConspWindowForm(QMainWindow):
                     getWids(wid, depth=depth + 1)
         getWids(self.consparr)
         self.conspIsOpen = True
+        # виджет(ы) для передвидения куска и замены марки [выбор символа, галочка, стрелка влево, стрелка вправо]
+        self.moveButtons = [QComboBox(self)] + [QPushButton(self) for _i in range(3)]
+        self.moveButtons[1].setText('✅')  # галочка
+        self.moveButtons[2].setText('⇚')  # влево
+        self.moveButtons[2].clicked.connect(self.movePiece)
+        self.moveButtons[3].setText('⇛')  # вправо
+        self.moveButtons[3].clicked.connect(self.movePiece)
+        for wid in self.moveButtons:
+            wid.hide()
+        self.moveButtons[0].resize(int(0.1 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[0].move(int(self.width() * 0.025), int(self.height() * 0.025))
+        self.moveButtons[1].resize(int(0.025 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[1].move(int(0.0625 * self.width()), 0)
+        self.moveButtons[2].resize(int(0.025 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[2].move(0, int(self.height() * 0.025))
+        self.moveButtons[2].clicked.connect(self.movePiece)
+        self.moveButtons[3].resize(int(0.025 * self.width()), int(self.height() * 0.025))
+        self.moveButtons[3].move(int(self.width() * 0.125), int(self.height() * 0.025))
     
     def changeBords(self):
         '''пересматривает то, какие виджеты видны в экране
@@ -211,6 +221,21 @@ class ConspWindowForm(QMainWindow):
                 if self.piecelist[self.endWid][1].y() > self.height():
                     self.endWid -= 1
         
+    def movePiece(self):
+        '''смещение куска'''
+        d = trueRound(self.piecelist[self.clickedWidNum[0]][1].x() / self.width() / 0.05)  # количество отступов в 5% от левого края
+        if self.sender() == self.moveButtons[2] and d > 1:  # если влево
+            self.piecelist[self.clickedWidNum[0]][1].resize(int(self.width() * (1 - d * 0.05)),
+                                                           self.piecelist[self.clickedWidNum[0]][1].height())  # изменение размера textEdit
+            self.piecelist[self.clickedWidNum[0]][1].move(int(self.piecelist[self.clickedWidNum[0]][1].x() - 0.05 * self.width()),
+                                                          self.piecelist[self.clickedWidNum[0]][1].y())  # смещение textEdit
+        elif self.sender() == self.moveButtons[3] and d < 4:  # если вправо
+            self.piecelist[self.clickedWidNum[0]][1].resize(int(self.width() * (1 - (2 + d) * 0.05)),
+                                                           self.piecelist[self.clickedWidNum[0]][1].height())  # изменение размера textEdit
+            self.piecelist[self.clickedWidNum[0]][1].move(int(self.piecelist[self.clickedWidNum[0]][1].x() + 0.05 * self.width()),
+                                                          self.piecelist[self.clickedWidNum[0]][1].y())  # смещение textEdit
+        
+        
     # events
     
     def mousePressEvent(self, event):
@@ -223,63 +248,57 @@ class ConspWindowForm(QMainWindow):
                        self.piecelist[index][1].y() + self.piecelist[index][1].height():  # в куске ли
                         if self.cursorClickCoords[0] <= self.piecelist[index][1].x() and index != 0:
                             self.clickedWidNum = [index, 0]
+                            # виджеты для передвижения
+                            self.moveButtons[0].move(self.cursorClickCoords[0] + int(self.width() * 0.025), self.cursorClickCoords[1] + int(self.height() * 0.025))
+                            self.moveButtons[1].move(self.cursorClickCoords[0] + int(self.width() * 0.0625), self.cursorClickCoords[1] + 0)
+                            self.moveButtons[2].move(self.cursorClickCoords[0] + 0, self.cursorClickCoords[1] + int(self.height() * 0.025))
+                            self.moveButtons[3].move(self.cursorClickCoords[0] + int(self.width() * 0.125), self.cursorClickCoords[1] + int(self.height() * 0.025))
+                            for wid in self.moveButtons:
+                                wid.show()
                             print('невыделенная марка')
                         elif self.width() * 0.95 >= self.cursorClickCoords[0] >= self.piecelist[index][1].x():
                             self.clickedWidNum = [index, 1]
                             print('невыделенный кусок')
                         break
             else:  # есть уже выделенный виджет
-                if self.clickedWidNum[1] == 1 and self.piecelist[self.clickedWidNum[0]][1].y() <\
-                   self.cursorClickCoords[1] < self.piecelist[self.clickedWidNum[0]][1].y() +\
-                   self.piecelist[self.clickedWidNum[0]][1].height() and\
-                   self.piecelist[self.clickedWidNum[0]][1].x() < self.cursorClickCoords[0] <\
-                   self.piecelist[self.clickedWidNum[0]][1].x() + self.piecelist[self.clickedWidNum[0]][1].width():  # если это выделенный кусок
-                    self.piecelist[self.clickedWidNum[0]][1].setReadOnly(False)
-                else:
-                    self.piecelist[self.clickedWidNum[0]][1].setReadOnly(True)
-                    self.clickedWidNum = []
-                    print("обнуление")
+                self.clickedWidNum = []
+                for wid in self.moveButtons:
+                    wid.hide()
+                print("обнуление")
     
     def wheelEvent(self, event):
         if self.conspIsOpen:
+            ad = event.angleDelta().y()
             if self.piecelist[0][1].y() <= 0 and event.angleDelta().y() > 0:  # вверх
                 ad = event.angleDelta().y()
                 if ad > -1 * self.piecelist[0][1].y():
                     ad = -1 * self.piecelist[0][1].y()
-                for wids in self.piecelist:
-                    for wid in wids:
-                        wid.move(wid.x(), wid.y() + ad)
                 
             if self.piecelist[-1][1].y() >= 0 and event.angleDelta().y() < 0:  # вниз
-                ad = event.angleDelta().y()
                 if -1 * ad > self.piecelist[-1][1].y():
                     ad = -1 * self.piecelist[-1][1].y()
-                for wids in self.piecelist:
-                    for wid in wids:
-                        wid.move(wid.x(), wid.y() + ad)
+                    
+            for wids in self.piecelist: # марки и куски двигаются
+                for wid in wids:
+                    wid.move(wid.x(), wid.y() + ad)
+            for wid in self.moveButtons:  # виджеты смещения двигаются
+                wid.move(wid.x(), wid.y() + ad)
     
     # for screen view changing
     
     def changeReadToMain(self):
         self.changeWindow(self.mainlyst, self.readlyst)
+        for wid in self.moveButtons:
+            wid.hide()
         
     def changeMainToRead(self):
         self.changeWindow(self.readlyst, self.mainlyst)
-        # виджеты для сдвига
-        self.moveButtons[0].resize(int(0.1 * self.width()), int(self.height() * 0.025))
-        self.moveButtons[0].move(int(self.width() * 0.025), int(self.height() * 0.025))
-        self.moveButtons[1].resize(int(0.025 * self.width()), int(self.height() * 0.025))
-        self.moveButtons[1].move(int(0.0625 * self.width()), 0)
-        self.moveButtons[2].resize(int(0.025 * self.width()), int(self.height() * 0.025))
-        self.moveButtons[2].move(0, int(self.height() * 0.025))
-        self.moveButtons[3].resize(int(0.025 * self.width()), int(self.height() * 0.025))
-        self.moveButtons[3].move(int(self.width() * 0.125), int(self.height() * 0.025))
         
         
 #with open('consp.blconsp', mode='wb') as conspf:
 #    conspf.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b\x03\xd0\x91\x04\xd0\xb0\x04\x04\xd0\xb0\x05\xd0\xb0\x05\x04\x03')
-setConspParams('consp.blconsp', params=['(5,10,)Ария',
-                                        ['(5,10,)История создания', ['(5,10,☆)1985']],
+setConspParams('consp.blconsp', params=['(5,10,)Ария'] +
+                                        [['(5,10,)История создания', ['(5,10,☆)1985']],
                                         ['(5,10,)Лучшие песни🔎🔖', ['(5,10,☆)Точка невозврата'], ['(5,10,☆)Ночь короче дня']]])
 print(getConspParams('consp.blconsp'))
 runapp()
