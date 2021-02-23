@@ -7,6 +7,31 @@ from PyQt5.QtCore import Qt, QObject, pyqtSignal
 winsizes = (190, 180)
 layerbytes = [b'', b'\x03', b'\x04', b'\x05', b'\x06']
 
+def normHtml(htmlstr):
+    '''переводит html-код, получаемый методом toHtml, в его укороченную версию'''
+    startInd = 2  # индекс начала строки
+    endInd = len(htmlstr) - 4  # индекс конца строки
+    dopstr=htmlstr[:2]  # для поиска последовательности символов, а не одного
+    while True:  # ищем "<p"
+        dopstr = dopstr[1] + htmlstr[startInd]
+        startInd += 1
+        if dopstr == '<p':
+            break
+    while True:  # ищем, где '>', закрывающее '<p'
+        if htmlstr[startInd] == '>':
+            break
+        startInd += 1
+    startInd += 1
+    dopstr = htmlstr[-3:]
+    while True:  # ищем, где находится '/p'
+        if dopstr == '/p':
+            break
+        dopstr = htmlstr[endInd] + dopstr[0]
+        endInd -= 1
+    if startInd >= endInd:
+        return ''
+    return htmlstr[startInd:endInd]
+
 def trueRound(num):
     '''обычное округление'''
     if num % 1 < 0.5:
@@ -127,7 +152,7 @@ class ConspWindowForm(QMainWindow):
         self.readlyst[6].resize(int(self.readlyst[2] / 100 * 4.5), int(self.readlyst[3] / 100 * 4.5))
         self.readlyst[6].move(int(self.readlyst[2] / 100 * 95.5), int(self.readlyst[3] // 100 * 10.5))
         self.readlyst[6].setFont(QFont('Arial', int(self.readlyst[2] / 100 * 2)))
-        self.readlyst[6].clicked.connect(self.changeBords)
+        self.readlyst[6].clicked.connect(self.saveConsp)
         self.piecelist = []  # виджеты, воплощающие куски [[begsymbollab1, textEdit1], [begsymbollab2, textEdit2], ...]
         self.begWid = 0
         self.endWid = 0  # начальный и конечный виджеты, видимые на экране
@@ -202,6 +227,38 @@ class ConspWindowForm(QMainWindow):
         self.moveButtons[5].resize(int(0.025 * self.width()), int(self.height() * 0.025))
         self.moveButtons[5].clicked.connect(self.resizePiece)
     
+    def saveConsp(self):
+        '''сохраняет конспект'''
+        # сначала в массив
+        self.curd = 1
+        self.ind = 1
+        def getArr():
+            '''для получения массива того, что идёт после верховного заголовка
+            curd -- целое прибл. кол-во отступов в 5% для текущей последовательности кусков
+            ind -- индекс текущего куска'''
+            retarr = []
+            while self.ind < len(self.piecelist):
+                d = trueRound(self.piecelist[self.ind][1].x() / self.width() / 0.05)  # сколько отступов в 5% у текущего куска
+                if d < self.curd:
+                    self.curd = d
+                    return retarr
+                if d == self.curd:
+                    retarr.append(['(' + str(int(self.piecelist[self.ind][1].height() / self.height() * 100)) + ','\
+                + str(self.piecelist[self.ind][1].font().pointSize()) + ',' + self.piecelist[self.ind][0].text() + ')'\
+                + normHtml(self.piecelist[self.ind][1].toHtml())])
+                    self.ind += 1
+                if d > self.curd:
+                    self.curd = d
+                    for piece in getArr():
+                        retarr[-1].append(piece)
+            return retarr
+        self.consparr = ['(' + str(int(self.piecelist[0][1].height() / self.height() * 100)) + ','\
+            + str(self.piecelist[0][1].font().pointSize()) + ',' + self.piecelist[0][0].text() + ')'\
+            + normHtml(self.piecelist[0][1].toHtml())] + getArr()
+        del self.curd
+        del self.ind
+        setConspParams(self.conspFileName, self.consparr)  # собственно запись
+    
     def changeBords(self):
         '''пересматривает то, какие виджеты видны в экране
         нужно для оптимизации взаимодействия с ними'''
@@ -225,7 +282,7 @@ class ConspWindowForm(QMainWindow):
                     self.endWid -= 1
         
     def movePiece(self):
-        '''смещение куска'''
+        '''смещение куска с изменением его приоритета'''
         d = trueRound(self.piecelist[self.clickedWidNum[0]][1].x() / self.width() / 0.05)  # количество отступов в 5% от левого края
         print(d)
         if self.sender() == self.moveButtons[2] and d > 1:  # если влево
@@ -260,6 +317,7 @@ class ConspWindowForm(QMainWindow):
         for widnum in range(self.clickedWidNum[0] + 1, len(self.piecelist)):
             self.piecelist[widnum][0].move(self.piecelist[widnum][0].x(), int(self.piecelist[widnum][0].y() + d))
             self.piecelist[widnum][1].move(self.piecelist[widnum][1].x(), int(self.piecelist[widnum][1].y() + d))
+        self.changeBords()
     # events
     
     def mousePressEvent(self, event):
@@ -290,6 +348,7 @@ class ConspWindowForm(QMainWindow):
                     wid.hide()
     
     def wheelEvent(self, event):
+        '''обработка событий колёсика'''
         if self.conspIsOpen:
             ad = event.angleDelta().y()
             if self.piecelist[0][1].y() <= 0 and event.angleDelta().y() > 0:  # вверх
@@ -320,8 +379,7 @@ class ConspWindowForm(QMainWindow):
         
 #with open('consp.blconsp', mode='wb') as conspf:
 #    conspf.write(b'\xd0\x91\xd0\xb0\xd0\xb9\xd1\x82\xd1\x8b\x03\xd0\x91\x04\xd0\xb0\x04\x04\xd0\xb0\x05\xd0\xb0\x05\x04\x03')
-setConspParams('consp.blconsp', params=['(5,10,)Ария'] +
-                                        [['(5,10,)История создания', ['(5,10,☆)1985']],
+setConspParams('consp.blconsp', params=['(5,10,)Ария', ['(5,10,)История создания', ['(5,10,☆)1985']],
                                         ['(20,10,)Лучшие песни🔎🔖⭥', ['(5,10,☆)Точка невозврата'], ['(5,10,☆)Ночь короче дня']]])
 # print(getConspParams('consp.blconsp'))
 runapp()
